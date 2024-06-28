@@ -4,8 +4,8 @@ from datetime import datetime
 
 class Users:
     def __init__(self):
-        self.system_users_script = "./backend/system_users.sh"
-        self.regular_users_script = "./backend/regular_users.sh"
+        
+        self.list_user_script = "./backend/list_user_script.sh"
         self.rootpasswd = ""
     def _run_command(self, command):
         try:
@@ -32,10 +32,10 @@ class Users:
         
     
     def list_system_users(self):
-        return self._run_command(self.system_users_script)
+        return self._run_command(self.list_user_script )
 
     def list_regular_users(self):
-        return self._run_command(self.regular_users_script)
+        return self._run_command(self.list_user_script + " -r")
 
     def get_user_info(self,user_name):
         ...
@@ -64,55 +64,70 @@ class Users:
         ...
 
 
-        basic_info = self._run_command(f"getent passwd {user_name} ")[0].split(":")
+        basic_info = self._run_command(f"getent passwd {user_name} ")
         
-        self.Username = basic_info[0]
-
-        if basic_info[1] in ["x","*","!",""]:
-            ispasswdprotected = "yes"
-        else:
-            ispasswdprotected = "no"
-
-        self.userID = basic_info[2]
         
-        self.GroupID = basic_info[3]
+        
+        if basic_info and isinstance(basic_info[0], str):
+            basic_info = basic_info[0].split(":")
+            self.Username = basic_info[0]
 
-        self.pgroup = self._run_command(f"id -gn {user_name}")
+            if basic_info[1] in ["x","*","!",""]:
+                ispasswdprotected = "yes"
+            else:
+                ispasswdprotected = "no"
 
-        self.groupsnames = self._run_command(f"groups {self.Username}")[0].split(":")[-1].strip().replace(" ",",")
-
-        self.fullName = basic_info[4]
-
-        self.homeDIR = basic_info[5]
-
-        self.shell = basic_info[6]   #other shell types /usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin,
-
-
-        userType = "regular user"  if int(self.userID)>=1000 else "system user"
-
-        self.sudoPermission = self._run_sudo_command(f" -l -U {self.Username}")
-        if "(ALL : ALL) ALL" in self.sudoPermission[-1]:
+            self.userID = basic_info[2]
             
-            self.sudoPermission = True
-        else:
-            self.sudoPermission = False
-        if userType == "regular user":
-            
+            self.GroupID = basic_info[3]
 
-            # for backup beacuse it does not give year "grep 'useradd' /var/log/auth.log | grep '{Username}' |grep 'UID={userID}'"     
-            #command 2  stat -c %w /home/marcus  it returns creation date of this home dir
+            self.pgroup = self._run_command(f"id -gn {user_name}")
 
-            userCreationdate = self._run_sudo_command(f"passwd -S {self.Username}").split(" ")[3]
-            print(userCreationdate)
-            if "new user:" in userCreationdate[0]:
-                print("new user")
-                date =  userCreationdate[0].split(":")
-                print(date)
-            elif "-1" in userCreationdate:
-                datetime_obj = ""
-            elif userCreationdate:
+            self.groupsnames = self._run_command(f"groups {self.Username}")[0].split(":")[-1].strip().replace(" ",",")
+
+            self.fullName = basic_info[4]
+
+            self.homeDIR = basic_info[5]
+
+            self.shell = basic_info[6]   #other shell types /usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin,
+
+
+            userType = "regular user"  if int(self.userID)>=1000 else "system user"
+
+            self.sudoPermission = self._run_sudo_command(f" -l -U {self.Username}")
+            if "(ALL : ALL) ALL" in self.sudoPermission[-1]:
+                
+                self.sudoPermission = True
+            else:
+                self.sudoPermission = False
+            if userType == "regular user":
                 
 
+                # for backup beacuse it does not give year "grep 'useradd' /var/log/auth.log | grep '{Username}' |grep 'UID={userID}'"     
+                #command 2  stat -c %w /home/marcus  it returns creation date of this home dir
+
+                userCreationdate = self._run_sudo_command(f"passwd -S {self.Username}").split(" ")[3]
+                print(userCreationdate)
+                if "new user:" in userCreationdate[0]:
+                    print("new user")
+                    date =  userCreationdate[0].split(":")
+                    print(date)
+                elif "-1" in userCreationdate:
+                    datetime_obj = ""
+                elif userCreationdate:
+                    
+
+                    # Format string to match the input timestamp
+                    format_str = "%m/%d/%Y"
+                    output_format_str = "%Y-%m-%d"
+                    # Parse the timestamp string into a datetime object
+                    datetime_obj = datetime.strptime(userCreationdate, format_str)
+                    datetime_obj.strftime(output_format_str)
+
+            else:
+                # this command return user creation date not time
+                userCreationdate = self._run_sudo_command(f"passwd -S {self.Username}")
+                print(userCreationdate)
                 # Format string to match the input timestamp
                 format_str = "%m/%d/%Y"
                 output_format_str = "%Y-%m-%d"
@@ -120,50 +135,40 @@ class Users:
                 datetime_obj = datetime.strptime(userCreationdate, format_str)
                 datetime_obj.strftime(output_format_str)
 
+
+            last_login = self._run_command(f"last {self.Username}")
+            
+            
+
+            print("-------------------------------------")
+            print(f"User {self.Username} Detals")
+            print("-------------------------------------")
+            print(f"Username ==: {self.Username}")
+            print(f"password protected ? : {ispasswdprotected}")
+            print(f"UserID : {(self.userID)}")
+            print(f"GroupID : {self.GroupID}")
+            print(f"Primary Group : {self.pgroup}")
+            print(f"Groups : {self.groupsnames}")
+            print(f"FullName : {self.fullName}")
+            print(f"HomeDIR : {self.homeDIR}")
+            print(f"Shell : {self.shell}")
+            print(f"UserType : {userType}")
+
+
+            print(f"sudo permission : {self.sudoPermission}")
+
+            print(f"User Creation : {datetime_obj}")
+            
+            print(f"last login :- ")
+            print(f"-----------------------------------------------------------------------------")
+            print(f"Name      terminal      Remote Host      Login            logout   duration")
+            print(f"-----------------------------------------------------------------------------")
+            
+            for ll in last_login:
+                print(ll)
+
         else:
-            # this command return user creation date not time
-            userCreationdate = self._run_sudo_command(f"passwd -S {self.Username}")
-            print(userCreationdate)
-            # Format string to match the input timestamp
-            format_str = "%m/%d/%Y"
-            output_format_str = "%Y-%m-%d"
-            # Parse the timestamp string into a datetime object
-            datetime_obj = datetime.strptime(userCreationdate, format_str)
-            datetime_obj.strftime(output_format_str)
-
-
-        last_login = self._run_command(f"last {self.Username}")
-        
-        
-
-        print("-------------------------------------")
-        print(f"User {self.Username} Detals")
-        print("-------------------------------------")
-        print(f"Username ==: {self.Username}")
-        print(f"password protected ? : {ispasswdprotected}")
-        print(f"UserID : {(self.userID)}")
-        print(f"GroupID : {self.GroupID}")
-        print(f"Primary Group : {self.pgroup}")
-        print(f"Groups : {self.groupsnames}")
-        print(f"FullName : {self.fullName}")
-        print(f"HomeDIR : {self.homeDIR}")
-        print(f"Shell : {self.shell}")
-        print(f"UserType : {userType}")
-
-
-        print(f"sudo permission : {self.sudoPermission}")
-
-        print(f"User Creation : {datetime_obj}")
-        
-        print(f"last login :- ")
-        print(f"-----------------------------------------------------------------------------")
-        print(f"Name      terminal      Remote Host      Login            logout   duration")
-        print(f"-----------------------------------------------------------------------------")
-        
-        for ll in last_login:
-            print(ll)
-
-
+            print(basic_info)
 
     def createUser(self):
         username = input("Enter user name: ")
